@@ -1,9 +1,10 @@
 package com.wuxl.design.protocol;
 
-import com.wuxl.design.common.CommonUtils;
+import java.util.Arrays;
 
-import java.nio.ByteBuffer;
-
+import static com.wuxl.design.common.DataUtils.toByte;
+import static com.wuxl.design.common.DataUtils.toHex;
+import static com.wuxl.design.common.DataUtils.toInteger;
 import static com.wuxl.design.protocol.DataProtocol.*;
 
 /**
@@ -12,108 +13,102 @@ import static com.wuxl.design.protocol.DataProtocol.*;
  */
 public class DataPackage {
 
-    private byte[] id = new byte[ID_LENGTH];
+    //数据来源
+    private byte[] origin = new byte[ORIGIN_LENGTH];
 
-    private byte type;
+    //数据目的
+    private byte[] target = new byte[TARGET_LENGTH];
 
-    private byte cmd;
-
-    private byte data;
-
-    private ByteBuffer buffer = ByteBuffer.allocate(32);
+    private int data;
 
     public DataPackage() {}
 
-    public DataPackage(byte[] bytes){
-        setSendData(bytes);
+    public DataPackage(byte[] origin,byte[] target,int data) {
+        if(origin == null || origin.length < ORIGIN_LENGTH
+                || target == null || target.length < TARGET_LENGTH){
+            throw new IllegalArgumentException("数据包构造异常");
+        }
+        System.arraycopy(origin,0,this.origin,0,this.origin.length);
+        System.arraycopy(target,0,this.target,0,this.target.length);
+        this.data = data;
     }
 
-    public DataPackage(byte[] id, byte type, byte cmd, byte data) {
-        System.arraycopy(id,0,this.id,0,this.id.length);
-        this.type = type;
-        this.cmd = cmd;
-        this.data = data;
+    /**
+     * 数据接收解析
+     */
+    public boolean receive(byte[] bytes){
+        if(bytes == null || bytes.length < RECEIVE_LENGTH) {
+            return false;
+        }
+        System.arraycopy(bytes,0,origin,0,origin.length);
+        System.arraycopy(bytes,ORIGIN_LENGTH,target,0,target.length);
+        data = toInteger(bytes,ORIGIN_LENGTH + TARGET_LENGTH);
+        return true;
     }
 
     /**
      * 设置发送数据
      */
     public void setSendData(DataPackage data){
-        setSendData(data.getSendData());
-    }
-
-    /**
-     * 设置发送数据
-     */
-    public void setSendData(byte[] bytes){
-        if(bytes == null || bytes.length < TOTAL_LENGTH)
-            throw new IllegalArgumentException("数据包构造异常");
-        System.arraycopy(bytes,0,id,0,id.length);
-        type = bytes[TYPE_POSITION];
-        cmd = bytes[CMD_POSITION];
-        data = bytes[DATA_POSITION];
+        byte[] bytes = data.getAllData();
+        System.arraycopy(bytes,0,origin,0,origin.length);
+        System.arraycopy(bytes,ORIGIN_LENGTH,target,0,target.length);
+        this.data = toInteger(bytes,ORIGIN_LENGTH + TARGET_LENGTH);
     }
 
     /**
      * 获得发送数据
+     * 只用发送来源and数据
      */
     public byte[] getSendData(){
-        byte[] sendData = new byte[TOTAL_LENGTH];
-        System.arraycopy(id,0,sendData,0,id.length);
-        sendData[TYPE_POSITION] = type;
-        sendData[CMD_POSITION] = cmd;
-        sendData[DATA_POSITION] = data;
+        byte[] sendData = new byte[SEND_LENGTH];
+        System.arraycopy(origin,0,sendData,0,origin.length);
+        toByte(sendData,data,ORIGIN_LENGTH);
 
         return sendData;
     }
 
-    public ByteBuffer getBuffer() {
-        return buffer;
+    /**
+     * 获得所有数据
+     */
+    public byte[] getAllData(){
+        byte[] all = new byte[RECEIVE_LENGTH];
+        System.arraycopy(origin,0,all,0,origin.length);
+        System.arraycopy(target,0,all,ORIGIN_LENGTH,target.length);
+        toByte(all,data,ORIGIN_LENGTH + TARGET_LENGTH);
+
+        return all;
     }
 
-    public byte[] getId() {
-        return id;
+    public void setTarget(byte[] bytes){
+        if(bytes==null || bytes.length < TARGET_LENGTH){
+            throw  new IllegalArgumentException("参数不合法:"+ Arrays.toString(bytes));
+        }
+        System.arraycopy(bytes,0,target,0,target.length);
     }
 
-    public void setId(byte[] id) {
-        this.id = id;
+    public byte[] getOrigin(){
+        return origin;
     }
 
-    public byte getType() {
-        return type;
+    public byte[] getTarget(){
+        return target;
     }
 
-    public void setType(byte type) {
-        this.type = type;
-    }
-
-    public byte getCmd() {
-        return cmd;
-    }
-
-    public void setCmd(byte cmd) {
-        this.cmd = cmd;
-    }
-
-    public byte getData() {
+    public int getData() {
         return data;
     }
 
-    public void setData(byte data) {
+    public void setData(int data) {
         this.data = data;
-    }
-
-    public String getHexId(){
-        return CommonUtils.toHex(id);
     }
 
     @Override
     public String toString() {
         return "DataPackage{" +
-                "id=" + getHexId() +
-                ", type=" + type +
-                ", cmd=" + cmd +
-                ", data=" + data +
+                "origin=" + toHex(origin) +
+                ", target=" + toHex(target) +
+                ", data=" + Integer.toHexString(data) +
                 '}';
     }
 }

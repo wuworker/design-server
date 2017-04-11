@@ -1,11 +1,13 @@
 package com.wuxl.design.client.impl;
 
 import com.wuxl.design.client.NIOClient;
-import com.wuxl.design.common.CommonUtils;
 import com.wuxl.design.protocol.DataPackage;
 
-import static com.wuxl.design.protocol.DataProtocol.CMD_MY;
-import static com.wuxl.design.protocol.DataProtocol.ID_LENGTH;
+import java.util.Arrays;
+
+import static com.wuxl.design.common.DataUtils.toHex;
+import static com.wuxl.design.protocol.DataProtocol.ORIGIN_LENGTH;
+import static com.wuxl.design.protocol.DataProtocol.TARGET_LENGTH;
 
 /**
  * 客户端
@@ -13,34 +15,35 @@ import static com.wuxl.design.protocol.DataProtocol.ID_LENGTH;
  */
 public class NIOClientImpl implements NIOClient{
 
-    //设备id(mac)
-    private byte[] id = new byte[ID_LENGTH];
+    private static final  byte[] EMPTY_TARGET = new byte[TARGET_LENGTH];
 
-    //类型
-    private byte type = 0;
+    private byte[] origin = new byte[ORIGIN_LENGTH];
 
-    //数据包
-    private DataPackage dataPackage = new DataPackage();
-
-    //是否有新数据
     private boolean hasData;
 
-    public NIOClientImpl() {}
+    private DataPackage dataPackage = new DataPackage();
+
+    static{
+        Arrays.fill(EMPTY_TARGET,(byte)0);
+    }
+
+    public NIOClientImpl(){}
 
     /**
      * 数据包处理
+     *
      * @return 结果
      */
     @Override
     public boolean process() {
 
-        byte cmd = dataPackage.getCmd();
-        //自我设置
-        if(cmd == CMD_MY){
-            System.arraycopy(dataPackage.getId(),0,id,0,id.length);
-            type = dataPackage.getType();
+        byte[] target = dataPackage.getTarget();
+        //设置来源
+        if(Arrays.equals(target,EMPTY_TARGET)){
+            System.arraycopy(dataPackage.getOrigin(),0,origin,0,origin.length);
             return false;
         }
+
         return true;
     }
 
@@ -63,14 +66,6 @@ public class NIOClientImpl implements NIOClient{
     }
 
     /**
-     * 清空数据包
-     */
-    @Override
-    public void clear() {
-        hasData = false;
-    }
-
-    /**
      * 设置是否有数据
      */
     @Override
@@ -87,40 +82,37 @@ public class NIOClientImpl implements NIOClient{
     }
 
     /**
-     * 获得设备id
+     * 清空数据包
+     */
+    @Override
+    public void clear() {
+        hasData = false;
+    }
+
+    /**
+     * 获得设备来源
      *
      * @return id
      */
     @Override
-    public byte[] getId() {
-        return id;
+    public byte[] getOrigin() {
+        return origin;
     }
 
     /**
-     * 获得16进制的id
+     * 获得16进制的设备来源
      *
-     * @return 16进制id
+     * @return 来源16进制表示
      */
     @Override
-    public String getHexId() {
-        return CommonUtils.toHex(id);
-    }
-
-    /**
-     * 获得设备类型
-     *
-     * @return type
-     */
-    @Override
-    public byte getType() {
-        return type;
+    public String getHexOrigin() {
+        return toHex(origin);
     }
 
     @Override
     public String toString() {
-        return "设备{" +
-                "id=" + getHexId() +
-                ", type=" + type +
+        return "Client{" +
+                "origin=" + getHexOrigin() +
                 '}';
     }
 }

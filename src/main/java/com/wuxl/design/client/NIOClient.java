@@ -40,21 +40,15 @@ public interface NIOClient {
     void clear();
 
     /**
-     * 获得设备id
+     * 获得设备来源
      * @return id
      */
-    byte[] getId();
+    byte[] getOrigin();
 
     /**
-     * 获得16进制的id
+     * 获得16进制的设备来源
      * @return
      */
-    String getHexId();
-
-    /**
-     * 获得设备类型
-     * @return type
-     */
-    byte getType();
+    String getHexOrigin();
 
 }

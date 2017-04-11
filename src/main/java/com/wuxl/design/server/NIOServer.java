@@ -16,8 +16,6 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.*;
 
-import static com.wuxl.design.protocol.DataProtocol.*;
-
 /**
  * 服务器
  * Created by wuxingle on 2017/4/9 0009.
@@ -28,11 +26,10 @@ public class NIOServer {
 
     private static NIOServer instance;
 
-    //单片机
-    private List<NIOClient> mcuClients = new ArrayList<>();
+    //客户端列表
+    private List<NIOClient> clients = new ArrayList<>();
 
-    //手机
-    private List<NIOClient> appClients = new ArrayList<>();
+    private ByteBuffer buffer = ByteBuffer.allocate(32);
 
     private Selector selector;
 
@@ -119,11 +116,12 @@ public class NIOServer {
                     handlerKey(key);
                 }
             }
-        }catch (IOException e) {
+        }catch (Exception e) {
             log.error("服务调度出现异常", e);
         } finally {
             selector.close();
             log.info("服务器已关闭");
+            running = false;
         }
     }
 
@@ -139,7 +137,7 @@ public class NIOServer {
             } else if (key.isWritable()) {
                 handlerWriter(key);
             }
-        }catch (IOException e){
+        }catch (Exception e){
             log.error("事件处理发生异常",e);
         }
     }
@@ -162,7 +160,7 @@ public class NIOServer {
         }
     }
 
-    /**
+     /**
      * 处理读事件
      */
     private void handlerReader(SelectionKey key)throws IOException{
@@ -172,21 +170,19 @@ public class NIOServer {
             socketChannel = (SocketChannel) key.channel();
             client = (NIOClient) key.attachment();
             DataPackage dataPackage = client.getDataPackage();
-            ByteBuffer buffer = dataPackage.getBuffer();
             //接收数据
             int count = socketChannel.read(buffer);
             if (count != -1) {
-                log.debug("收到{}发送的数据count={}", client,count);
+                log.info("收到{}发送的数据count={}", client,count);
                 //buffer从写模式切换到读模式
                 buffer.flip();
-                if (count < TOTAL_LENGTH) {
-                    log.info("数据异常,请求被忽略:{}", Arrays.toString(Arrays.copyOf(buffer.array(), count)));
-                    buffer.clear();
+                byte[] arrays = buffer.array();
+                boolean isSuc = dataPackage.receive(arrays);
+                if(!isSuc){
+                    log.info("数据异常,请求被忽略:{}", Arrays.toString(Arrays.copyOf(arrays, count)));
                     return;
                 }
-
-                byte[] arrays = buffer.array();
-                dataPackage.setSendData(arrays);
+                log.info("数据处理后:{}",dataPackage);
                 //进行数据处理
                 if (client.process()) {
                     //设置发送信息
@@ -194,7 +190,7 @@ public class NIOServer {
                 } else {
                     //添加设备
                     addClient(client);
-                    log.info("当前app设备数为:{},mcu设备数为:{}",appClients.size(),mcuClients.size());
+                    log.info("当前设备数为:{}",clients.size());
                 }
                 buffer.clear();
             } else {
@@ -214,7 +210,7 @@ public class NIOServer {
 
     /**
      * 处理写事件
-     * @param key
+     * @param key SelectionKey
      */
     private void handlerWriter(SelectionKey key)throws IOException{
         SocketChannel socketChannel = (SocketChannel) key.channel();
@@ -240,27 +236,14 @@ public class NIOServer {
      * @param client 设备
      */
     private void addClient(NIOClient client) {
-        if (client.getType() == TYPE_APP) {
-            for (NIOClient c : appClients) {
-                if (Arrays.equals(c.getId(), client.getId())) {
-                    log.info("该app设备已存在,不能增加");
-                    return;
-                }
+        for(NIOClient c : clients){
+            if(Arrays.equals(c.getOrigin(),client.getOrigin())){
+                log.info("该设备已存在:{}",client);
+                return;
             }
-            appClients.add(client);
-            log.info("添加了一台设备[]{}", client);
-        } else if (client.getType() == TYPE_MCU) {
-            for (NIOClient c : mcuClients) {
-                if (Arrays.equals(c.getId(), client.getId())) {
-                    log.info("该mcu设备已存在,不能增加");
-                    return;
-                }
-            }
-            mcuClients.add(client);
-            log.info("添加了一台设备[]{}", client);
-        } else {
-            log.info("设备类型不匹配[]{}", client.getType());
         }
+        clients.add(client);
+        log.info("添加了一台设备{}",client);
     }
 
     /**
@@ -268,25 +251,15 @@ public class NIOServer {
      */
     private void setMessage(NIOClient client) {
         DataPackage data = client.getDataPackage();
-        Iterator<NIOClient> it = null;
-        if (data.getType() == TYPE_APP) {
-            it = appClients.iterator();
-        } else if (data.getType() == TYPE_MCU) {
-            it = mcuClients.iterator();
-        } else {
-            log.warn("设置发送信息设备类型不匹配[]{}", data.getType());
-            return;
-        }
-        while(it.hasNext()){
-            NIOClient c = it.next();
-            if(Arrays.equals(c.getId(),data.getId())){
+        for(NIOClient c: clients){
+            if(Arrays.equals(c.getOrigin(),data.getTarget())){
                 c.setDataPackage(data);
                 c.setHasData();
-                log.info("{}将发送[]{}",client,data);
+                log.info("{}将发送到{}",client,c);
                 return;
             }
         }
-        log.info("未找到目标设备[]{}", data);
+        log.info("数据包未找到目标设备[]{}", data);
     }
 
     /**
@@ -294,24 +267,16 @@ public class NIOServer {
      * @param client 要删除的设备
      */
     private void delClient(NIOClient client){
-        Iterator<NIOClient> it = null;
-        if (client.getType() == TYPE_APP) {
-            it = appClients.iterator();
-        } else if (client.getType() == TYPE_MCU) {
-            it = mcuClients.iterator();
-        } else {
-            log.warn("设备类型不匹配[]{}", client.getType());
-            return;
-        }
+        Iterator<NIOClient> it = clients.iterator();
         while(it.hasNext()){
             NIOClient c = it.next();
-            if(Arrays.equals(c.getId(),client.getId())){
+            if(Arrays.equals(c.getOrigin(),client.getOrigin())){
                 it.remove();
-                log.info("删除了设备信息[]{}",c);
-                log.info("当前app设备数为:{},mcu设备数为:{}",appClients.size(),mcuClients.size());
+                log.info("删除了设备{}",client);
                 return;
             }
         }
+
         log.info("未找到要删除的设备[]{}",client);
     }
 
