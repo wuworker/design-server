@@ -25,7 +25,7 @@ public interface NIOClient {
     DataPackage getDataPackage();
 
     /**
-     * 设置是否有数据
+     * 设置有数据
      */
     void setHasData();
 
@@ -35,7 +35,7 @@ public interface NIOClient {
     boolean hasData();
 
     /**
-     * 清空数据包
+     * 清空数据
      */
     void clear();
 
