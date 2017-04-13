@@ -34,13 +34,14 @@ public class DataUtils {
     }
 
     public static int toInteger(byte[] bytes,int start){
-        if (bytes == null || bytes.length - start < 4) {
-            return Integer.MIN_VALUE;
+        if (bytes == null) {
+            return 0;
         }
-        return  (bytes[start] & 0xff) << 24
-                | (bytes[start+1] & 0xff) << 16
-                | (bytes[start+2] & 0xff) << 8
-                | (bytes[start+3] & 0xff);
+        int data = 0;
+        for(int i=0;i<bytes.length && i<4;i++){
+            data |= ((bytes[start + i] & 0xff) << (3-i)*8);
+        }
+        return  data;
     }
 
     /**

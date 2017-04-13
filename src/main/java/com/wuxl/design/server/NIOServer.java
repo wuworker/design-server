@@ -177,6 +177,7 @@ public class NIOServer {
                 //buffer从写模式切换到读模式
                 buffer.flip();
                 byte[] arrays = buffer.array();
+                log.info("原始数据为:{}",Arrays.toString(Arrays.copyOf(arrays,count)));
                 boolean isSuc = dataPackage.receive(arrays);
                 if(!isSuc){
                     log.info("数据异常,请求被忽略:{}", Arrays.toString(Arrays.copyOf(arrays, count)));
