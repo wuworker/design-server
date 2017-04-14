@@ -27,10 +27,10 @@ public class NIOServerTest {
         initId();
 
         DataPackage data1 = new DataPackage(ID1,EMPTY,0x12345678);
-        DataPackage data2 = new DataPackage(ID2,EMPTY,0x12458395);
+        DataPackage data2 = new DataPackage(ID3,EMPTY,0x12458395);
 
         service.execute(new Task1(data1));
-        //service.execute(new Task2(data2));
+        service.execute(new Task2(data2));
 
         service.shutdown();
     }

@@ -108,7 +108,7 @@ public class DataPackage {
         return "DataPackage{" +
                 "origin=" + toHex(origin) +
                 ", target=" + toHex(target) +
-                ", data=" + Integer.toHexString(data) +
+                ", data=" + Arrays.toString(toByte(data)) +
                 '}';
     }
 }

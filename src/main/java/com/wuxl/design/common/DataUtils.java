@@ -26,44 +26,42 @@ public class DataUtils {
 
     /**
      * 根据byte拿到int
-     * byte[0] byte[1] byte[2] byte[3]
-     *   hh8    hl8     lh8     ll8
+     * byte[3] byte[2] byte[1] byte[0]
+     * hh8    hl8     lh8     ll8
      */
-    public static int toInteger(byte[] bytes){
-        return toInteger(bytes,0);
+    public static int toInteger(byte[] bytes) {
+        return toInteger(bytes, 0);
     }
 
-    public static int toInteger(byte[] bytes,int start){
+    public static int toInteger(byte[] bytes, int start) {
         if (bytes == null) {
             return 0;
         }
         int data = 0;
-        for(int i=0;i<bytes.length && i<4;i++){
-            data |= ((bytes[start + i] & 0xff) << (3-i)*8);
+        for (int i = 0; start+i < bytes.length && i < 4; i++) {
+            data |= ((bytes[start + i] & 0xff) << (i * 8));
         }
-        return  data;
+        return data;
     }
 
     /**
      * 转为byte
-     * byte[0] byte[1] byte[2] byte[3]
-     *   hh8    hl8     lh8     ll8
+     * byte[3] byte[2] byte[1] byte[0]
+     * hh8    hl8     lh8     ll8
      */
-    public static byte[] toByte(int num){
+    public static byte[] toByte(int num) {
         byte[] bytes = new byte[4];
-        toByte(bytes,num,0);
+        toByte(bytes, num, 0);
         return bytes;
     }
 
-    public static void toByte(byte[] bytes,int num,int start){
-        if(bytes==null || bytes.length < start + 4){
-            throw new IllegalArgumentException("参数不合法");
+    public static void toByte(byte[] bytes, int num, int start) {
+        if (bytes == null) {
+            return;
         }
-        bytes[start] = (byte)((num >> 24) & 0xff);
-        bytes[start+1] = (byte)((num >> 16) & 0xff);
-        bytes[start+2] = (byte)((num >> 8) & 0xff);
-        bytes[start+3] = (byte)((num) & 0xff);
+        for (int i = 0; i + start < bytes.length && i < 4; i++) {
+            bytes[start + i] = (byte) ((num >> (i * 8)) & 0xff);
+        }
+
     }
-
-
 }
