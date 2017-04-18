@@ -1,8 +1,12 @@
 package com.wuxl.design.client.impl;
 
 import com.wuxl.design.client.NIOClient;
+import com.wuxl.design.protocol.DataExecutor;
 import com.wuxl.design.protocol.DataPackage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 
 import static com.wuxl.design.common.DataUtils.toHex;
@@ -15,103 +19,129 @@ import static com.wuxl.design.protocol.DataProtocol.TARGET_LENGTH;
  */
 public class NIOClientImpl implements NIOClient{
 
+    private static final Logger log = LoggerFactory.getLogger(NIOClientImpl.class);
+
     private static final  byte[] EMPTY_TARGET = new byte[TARGET_LENGTH];
 
     private byte[] origin = new byte[ORIGIN_LENGTH];
 
+    private byte[] target = new byte[TARGET_LENGTH];
+
+    //需要转发的数据
+    private byte[] forwardData;
+
     private boolean hasData;
 
-    private DataPackage dataPackage = new DataPackage();
+    private boolean shouldForward;
 
-    static{
-        Arrays.fill(EMPTY_TARGET,(byte)0);
+    private ByteBuffer buffer = ByteBuffer.allocate(32);
+
+    public NIOClientImpl(){
+
     }
 
-    public NIOClientImpl(){}
-
     /**
-     * 数据包处理
-     *
-     * @return 结果
+     * 数据处理
      */
     @Override
-    public boolean process() {
+    public boolean process(DataExecutor dataExecutor) {
+        shouldForward = false;
 
-        byte[] target = dataPackage.getTarget();
-        //设置来源
-        if(Arrays.equals(target,EMPTY_TARGET)){
-            System.arraycopy(dataPackage.getOrigin(),0,origin,0,origin.length);
+        buffer.flip();
+        byte[] arrays = new byte[buffer.limit()];
+        buffer.get(arrays,0,buffer.limit());
+        log.info("{}[]receive data is:{}",this,Arrays.toString(arrays));
+        buffer.clear();
+
+        DataPackage dataPackage = dataExecutor.toDataPackage(arrays);
+        if(dataPackage == null){
+            log.warn("data parse fail");
             return false;
         }
+        log.info("parse result:{}",dataPackage);
 
+        byte[] origin = dataPackage.getOrigin();
+        //设置来源
+        if(Arrays.equals(this.origin,EMPTY_TARGET)){
+            System.arraycopy(origin,0,this.origin,0,ORIGIN_LENGTH);
+        }
+        if(Arrays.equals(dataPackage.getTarget(),EMPTY_TARGET)){
+            log.info("target is empty,can not forward[]{}",this);
+            return true;
+        }
+        //设置需要转发的数据
+        target = dataPackage.getTarget();
+        forwardData = dataExecutor.formDataPackage(dataPackage);
+        shouldForward = true;
+        log.debug("set forward data :{}",Arrays.toString(forwardData));
         return true;
     }
 
     /**
-     * 设置数据包
-     *
-     * @param dataPackage 数据包
+     * 设置发送数据
+     * @param data data
      */
     @Override
-    public void setDataPackage(DataPackage dataPackage) {
-        this.dataPackage.setSendData(dataPackage);
-    }
-
-    /**
-     * @return 获得数据包
-     */
-    @Override
-    public DataPackage getDataPackage() {
-        return dataPackage;
-    }
-
-    /**
-     * 设置是否有数据
-     */
-    @Override
-    public void setHasData() {
+    public void setSendData(byte[] data){
+        buffer.clear();
+        buffer.put(data);
+        buffer.flip();
         hasData = true;
     }
 
     /**
-     * @return 是否有数据
+     * 获得需要转发数据
+     * @return forward data
      */
     @Override
-    public boolean hasData() {
-        return hasData;
+    public byte[] getForwardData(){
+        return forwardData;
     }
 
-    /**
-     * 清空数据包
-     */
     @Override
     public void clear() {
+        buffer.clear();
         hasData = false;
     }
 
-    /**
-     * 获得设备来源
-     *
-     * @return id
-     */
     @Override
     public byte[] getOrigin() {
         return origin;
     }
 
-    /**
-     * 获得16进制的设备来源
-     *
-     * @return 来源16进制表示
-     */
     @Override
-    public String getHexOrigin() {
+    public byte[] getTarget() {
+        return target;
+    }
+
+    @Override
+    public boolean hasData() {
+        return hasData;
+    }
+
+    @Override
+    public boolean shouldForward() {
+        return shouldForward;
+    }
+
+    @Override
+    public ByteBuffer getBuffer() {
+        return buffer;
+    }
+
+    @Override
+    public String getHexOrigin(){
         return toHex(origin);
     }
 
     @Override
+    public String getHexTarget(){
+        return toHex(target);
+    }
+
+    @Override
     public String toString() {
-        return "Client{" +
+        return "NIOClient{" +
                 "origin=" + getHexOrigin() +
                 '}';
     }

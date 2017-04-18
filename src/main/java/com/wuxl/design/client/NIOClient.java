@@ -1,6 +1,9 @@
 package com.wuxl.design.client;
 
+import com.wuxl.design.protocol.DataExecutor;
 import com.wuxl.design.protocol.DataPackage;
+
+import java.nio.ByteBuffer;
 
 /**
  * 客户端接口
@@ -9,46 +12,58 @@ import com.wuxl.design.protocol.DataPackage;
 public interface NIOClient {
 
     /**
-     * 数据包处理
+     * 数据处理
+     * @param dataExecutor 数据解析器
      * @return 结果
      */
-    boolean process();
+    boolean process(DataExecutor dataExecutor);
 
     /**
-     * 设置数据包
+     * 设置需要发送的数据
+     * @param data data
      */
-    void setDataPackage(DataPackage dataPackage);
+    void setSendData(byte[] data);
 
     /**
-     * @return 获得数据包
+     * 获得需要转发的数据
+     * @return data
      */
-    DataPackage getDataPackage();
+    byte[] getForwardData();
 
     /**
-     * 设置有数据
+     * 是否需要转发
      */
-    void setHasData();
+    boolean shouldForward();
 
     /**
-     * @return 是否有数据
+     * 是否需要发送
      */
     boolean hasData();
 
     /**
-     * 清空数据
+     * 清空缓冲区
      */
     void clear();
 
     /**
      * 获得设备来源
-     * @return id
      */
     byte[] getOrigin();
 
-    /**
-     * 获得16进制的设备来源
-     * @return
-     */
     String getHexOrigin();
+
+    /**
+     * 获得设备目的地
+     */
+    byte[] getTarget();
+
+    String getHexTarget();
+
+    /**
+     * 拿到缓冲区
+     * @return buffer
+     */
+    ByteBuffer getBuffer();
+
 
 }

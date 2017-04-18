@@ -2,7 +2,7 @@ package com.wuxl.design.server;
 
 import com.wuxl.design.client.NIOClient;
 import com.wuxl.design.client.impl.NIOClientImpl;
-import com.wuxl.design.protocol.DataPackage;
+import com.wuxl.design.protocol.DataExecutor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,16 +29,19 @@ public class NIOServer {
     //客户端列表
     private List<NIOClient> clients = new ArrayList<>();
 
-    private ByteBuffer buffer = ByteBuffer.allocate(32);
-
     private Selector selector;
 
     private boolean running;
 
+    //数据解析者
+    private DataExecutor dataExecutor;
+
     //服务绑定的端口号
     private int port;
 
-    private NIOServer() {}
+    private NIOServer() {
+        dataExecutor = DataExecutor.getDefaultDataExecutor();
+    }
 
     //获得实例
     public static NIOServer getInstance() {
@@ -58,9 +61,9 @@ public class NIOServer {
         this.port = port;
         try {
             instance.init(port);
-            log.info("服务器绑定在端口号:{}", port);
+            log.info("server bind port:{}", port);
         } catch (IOException e) {
-            log.error("服务器启动失败", e);
+            log.error("server bind error", e);
             throw e;
         }
         return instance;
@@ -70,7 +73,7 @@ public class NIOServer {
      * 开始运行
      */
     public void start() throws IOException {
-        log.info("服务器开始运行...");
+        log.info("server start");
         running = true;
         instance.listen();
     }
@@ -79,7 +82,7 @@ public class NIOServer {
      * 关闭服务
      */
     public void close() {
-        log.info("服务器正在关闭...");
+        log.info("server closing...");
         running = false;
     }
 
@@ -102,27 +105,28 @@ public class NIOServer {
      */
     private void listen() throws IOException {
         int count = 0;
-        try {
-            while (running) {
+        while (running) {
+            try {
                 count = selector.select();
-                if (count == 0) {
-                    continue;
-                }
-                Set<SelectionKey> keys = selector.selectedKeys();
-                Iterator<SelectionKey> it = keys.iterator();
-                while (it.hasNext()) {
-                    SelectionKey key = it.next();
-                    it.remove();
-                    handlerKey(key);
-                }
+            }catch (IOException e){
+                running = false;
+                log.error("server select error",e);
+                break;
             }
-        }catch (Exception e) {
-            log.error("服务调度出现异常", e);
-        } finally {
-            selector.close();
-            log.info("服务器已关闭");
-            running = false;
+            if (count == 0) {
+                continue;
+            }
+            Set<SelectionKey> keys = selector.selectedKeys();
+            Iterator<SelectionKey> it = keys.iterator();
+            while (it.hasNext()) {
+                SelectionKey key = it.next();
+                it.remove();
+                handlerKey(key);
+            }
         }
+        log.info("server stop");
+        running = false;
+        selector.close();
     }
 
     /**
@@ -137,15 +141,17 @@ public class NIOServer {
             } else if (key.isWritable()) {
                 handlerWriter(key);
             }
-        }catch (Exception e){
-            log.error("事件处理发生异常",e);
+        }catch (IOException e){
+            log.error("socket close error",e);
+        } catch (RuntimeException e){
+            log.error("server runtime error",e);
         }
     }
 
     /**
      * 处理连接事件
      */
-    private void handlerAccept(SelectionKey key){
+    private void handlerAccept(SelectionKey key)throws IOException{
         try {
             SocketChannel socketChannel = ((ServerSocketChannel) key.channel()).accept();
             socketChannel.configureBlocking(false);
@@ -154,9 +160,11 @@ public class NIOServer {
             NIOClient client = new NIOClientImpl();
             selectionKey.attach(client);
             SocketAddress address = socketChannel.getRemoteAddress();
-            log.info("获得了新的客户端连接:{}", address);
+            log.info("accept a new client :{}", address);
         }catch (IOException e){
-            log.error("客户端连接时出现异常",e);
+            log.error("client connected error",e);
+            key.cancel();
+            key.channel().close();
         }
     }
 
@@ -164,48 +172,39 @@ public class NIOServer {
      * 处理读事件
      */
     private void handlerReader(SelectionKey key)throws IOException{
-        SocketChannel socketChannel = null;
         NIOClient client = null;
         try {
-            socketChannel = (SocketChannel) key.channel();
+            SocketChannel socketChannel = (SocketChannel) key.channel();
             client = (NIOClient) key.attachment();
-            DataPackage dataPackage = client.getDataPackage();
             //接收数据
-            int count = socketChannel.read(buffer);
+            int count = socketChannel.read(client.getBuffer());
             if (count != -1) {
-                log.info("收到{}发送的数据count={}", client,count);
-                //buffer从写模式切换到读模式
-                buffer.flip();
-                byte[] arrays = buffer.array();
-                log.info("原始数据为:{}",Arrays.toString(Arrays.copyOf(arrays,count)));
-                boolean isSuc = dataPackage.receive(arrays);
-                if(!isSuc){
-                    log.info("数据异常,请求被忽略:{}", Arrays.toString(Arrays.copyOf(arrays, count)));
+                boolean result = client.process(dataExecutor);
+                if(!result){
+                    log.warn("ignore this request");
                     return;
                 }
-                log.info("数据处理后:{}",dataPackage);
-                //进行数据处理
-                if (client.process()) {
-                    //设置发送信息
-                    setMessage(client);
-                } else {
+                if(!client.shouldForward()){
                     //添加设备
                     addClient(client);
-                    log.info("当前设备数为:{}",clients.size());
+                    log.info("client count is :{}",clients.size());
+                } else {
+                    forwardMessage(client);
                 }
-                buffer.clear();
             } else {
-                log.info("客户端已断开[]{}",client);
-                key.cancel();
-                socketChannel.close();
+                log.info("client is close[]{}",client);
                 //删除设备
                 delClient(client);
+                log.info("client count is :{}",clients.size());
+                key.cancel();
+                key.channel().close();
             }
         }catch (IOException e){
-            log.info("读数据异常,该连接断开[]{}",client,e);
-            key.cancel();
-            socketChannel.close();
+            log.info("client force close[]{}",client,e);
             delClient(client);
+            log.info("client count is :{}",clients.size());
+            key.cancel();
+            key.channel().close();
         }
     }
 
@@ -214,53 +213,63 @@ public class NIOServer {
      * @param key SelectionKey
      */
     private void handlerWriter(SelectionKey key)throws IOException{
-        SocketChannel socketChannel = (SocketChannel) key.channel();
-        NIOClient client = (NIOClient) key.attachment();
+        NIOClient client = null;
         try {
+            SocketChannel socketChannel = (SocketChannel) key.channel();
+            client = (NIOClient) key.attachment();
             if (client.hasData()) {
-                ByteBuffer buffer = ByteBuffer.wrap(client.getDataPackage().getSendData());
+                ByteBuffer buffer = client.getBuffer();
+                log.debug("buff is :{}",Arrays.toString(buffer.array()));
+                log.debug("position:"+buffer.position()+",limit:"+buffer.limit());
                 socketChannel.write(buffer);
+                log.info("{} send data",client);
                 //清空数据
                 client.clear();
-                log.info("设备发送了数据[]{}", client.getDataPackage());
             }
         }catch (IOException e){
-            log.error("写数据异常,断开连接[]{}",client,e);
-            key.cancel();
-            socketChannel.close();
+            log.error("send data error[]{}",client,e);
             delClient(client);
+            log.info("client count is :{}",clients.size());
+            key.cancel();
+            key.channel().close();
         }
     }
+
+    /**
+     * 转发消息
+     * @param client 需要转发的client
+     */
+    private void forwardMessage(NIOClient client){
+        if(client == null){
+            return;
+        }
+        for(NIOClient c:clients){
+            if(Arrays.equals(c.getOrigin(),client.getTarget())){
+                c.setSendData(client.getForwardData());
+                log.info("{} will send to {}",client,c);
+                return;
+            }
+        }
+        log.info("not find client[]{}",client);
+    }
+
 
     /**
      * 添加设备
      * @param client 设备
      */
     private void addClient(NIOClient client) {
+        if(client == null){
+            return;
+        }
         for(NIOClient c : clients){
             if(Arrays.equals(c.getOrigin(),client.getOrigin())){
-                log.info("该设备已存在:{}",client);
+                log.info("client already exist:{}",client);
                 return;
             }
         }
         clients.add(client);
-        log.info("添加了一台设备{}",client);
-    }
-
-    /**
-     * 设置发送信息
-     */
-    private void setMessage(NIOClient client) {
-        DataPackage data = client.getDataPackage();
-        for(NIOClient c: clients){
-            if(Arrays.equals(c.getOrigin(),data.getTarget())){
-                c.setDataPackage(data);
-                c.setHasData();
-                log.info("{}将发送到{}",client,c);
-                return;
-            }
-        }
-        log.info("数据包未找到目标设备[]{}", data);
+        log.info("add a client {}",client);
     }
 
     /**
@@ -268,17 +277,19 @@ public class NIOServer {
      * @param client 要删除的设备
      */
     private void delClient(NIOClient client){
+        if(client == null){
+            return;
+        }
         Iterator<NIOClient> it = clients.iterator();
         while(it.hasNext()){
             NIOClient c = it.next();
             if(Arrays.equals(c.getOrigin(),client.getOrigin())){
                 it.remove();
-                log.info("删除了设备{}",client);
+                log.info("remove a client {}",client);
                 return;
             }
         }
-
-        log.info("未找到要删除的设备[]{}",client);
+        log.info("not find client []{}",client);
     }
 
 }

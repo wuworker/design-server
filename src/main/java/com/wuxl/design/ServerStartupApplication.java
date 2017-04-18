@@ -17,7 +17,7 @@ public class ServerStartupApplication {
             NIOServer server = NIOServer.getInstance();
             server.bind(9999).start();
         }catch (Exception e){
-            log.error("服务启动失败",e);
+            log.error("server running error",e);
         }
     }
 

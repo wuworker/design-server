@@ -1,5 +1,6 @@
 package com.wuxl.design;
 
+import com.wuxl.design.protocol.DataExecutor;
 import com.wuxl.design.protocol.DataPackage;
 
 import java.io.IOException;
@@ -11,7 +12,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- *
  * Created by wuxingle on 2017/4/9 0009.
  */
 public class NIOServerTest {
@@ -21,87 +21,97 @@ public class NIOServerTest {
     private static final byte[] ID3 = new byte[6];
     private static final byte[] EMPTY = new byte[6];
 
-    public static void main(String[] args){
-        ExecutorService service = Executors.newFixedThreadPool(5);
+    static {
+        Arrays.fill(ID1, (byte) 0x1f);
+        Arrays.fill(ID2, (byte) 0x23);
+        Arrays.fill(ID3, (byte) 0x56);
+    }
 
-        initId();
+    public static void main(String[] args) {
+        ExecutorService service = Executors.newFixedThreadPool(3);
+        DataExecutor dataExecutor1 = DataExecutor.getClientDataEecutor();
+        DataExecutor dataExecutor2 = DataExecutor.getClientDataEecutor();
 
-        DataPackage data1 = new DataPackage(ID1,EMPTY,0x12345678);
-        DataPackage data2 = new DataPackage(ID3,EMPTY,0x12458395);
+        byte[] data1=new byte[]{1,2,3,4};
+        byte[] data2 = new byte[]{100,101,102,103};
 
-        service.execute(new Task1(data1));
-        service.execute(new Task2(data2));
+        service.execute(new Task1(dataExecutor1,data1));
+        service.execute(new Task2(dataExecutor2,data2));
 
         service.shutdown();
     }
 
-    private static void initId(){
-        Arrays.fill(ID1,(byte)0x1f);
-        Arrays.fill(ID2,(byte)0x23);
-        Arrays.fill(ID3,(byte)0x56);
-    }
 
-
-    private static class Task1 implements Runnable{
+    private static class Task1 implements Runnable {
 
         private DataPackage dataPackage;
+        private DataExecutor dataExecutor;
 
-        public Task1(DataPackage dataPackage){
-            this.dataPackage = dataPackage;
+        public Task1(DataExecutor dataExecutor, byte[] data) {
+            this.dataPackage = new DataPackage();
+            this.dataExecutor = dataExecutor;
+            System.arraycopy(ID1, 0, dataPackage.getOrigin(), 0, dataPackage.getOriginLength());
+            System.arraycopy(data, 0, dataPackage.getData(), 0, dataPackage.getDataLength());
         }
 
         @Override
         public void run() {
-            try{
-                Socket socket = new Socket("localhost",9999);
+            try {
+                Socket socket = new Socket("localhost", 9999);
                 OutputStream out = socket.getOutputStream();
-                InputStream in = socket.getInputStream();
-                byte[] bytes = dataPackage.getAllData();
+                //自我设置数据
+                byte[] bytes = dataExecutor.formDataPackage(dataPackage);
                 out.write(bytes);
                 out.flush();
-                System.out.println("发送了:"+Arrays.toString(bytes));
-                dataPackage.setTarget(ID2);
+                System.out.println("发送了:" + Arrays.toString(bytes));
+                //发送到id2
+                System.arraycopy(ID2,0,dataPackage.getTarget(),0,dataPackage.getTargetLength());
                 Thread.sleep(1000);
-                for(int i=1;i<6;i++){
-                    dataPackage.setData(dataPackage.getData() + 1);
-                    bytes = dataPackage.getAllData();
+                for (int i = 1; i < 6; i++) {
+                    bytes = dataExecutor.formDataPackage(dataPackage);
                     out.write(bytes);
                     out.flush();
-                    System.out.println("发送了:"+Arrays.toString(bytes));
+                    System.out.println("发送了:" + Arrays.toString(bytes));
                     Thread.sleep(1000);
                 }
-                socket.shutdownOutput();
                 socket.close();
-            }catch (IOException | InterruptedException e){
+            } catch (IOException | InterruptedException e) {
                 e.printStackTrace();
             }
         }
     }
 
-    private static class Task2 implements Runnable{
+    private static class Task2 implements Runnable {
 
         private DataPackage dataPackage;
+        private DataExecutor dataExecutor;
 
-        public Task2(DataPackage dataPackage){
-            this.dataPackage = dataPackage;
+        public Task2(DataExecutor dataExecutor, byte[] data) {
+            this.dataPackage = new DataPackage();
+            this.dataExecutor = dataExecutor;
+            System.arraycopy(ID2, 0, dataPackage.getOrigin(), 0, dataPackage.getOriginLength());
+            System.arraycopy(data, 0, dataPackage.getData(), 0, dataPackage.getDataLength());
         }
 
         @Override
         public void run() {
-            try{
-                Socket socket = new Socket("localhost",9999);
+            try {
+                Socket socket = new Socket("localhost", 9999);
                 OutputStream out = socket.getOutputStream();
                 InputStream in = socket.getInputStream();
-                out.write(dataPackage.getAllData());
+                //自我设置数据
+                byte[] bytes = dataExecutor.formDataPackage(dataPackage);
+                out.write(bytes);
                 out.flush();
+                System.out.println("发送了:" + Arrays.toString(bytes));
                 int count = 0;
                 byte[] data = new byte[16];
-                for(int i=0;i<5 && (count = in.read(data))>0;i++){
-                    System.out.println("接收了:"+Arrays.toString(data));
+                for (int i = 0; i < 5 && (count = in.read(data)) > 0; i++) {
+                    DataPackage dataPackage = dataExecutor.toDataPackage(data);
+                    System.out.println("接收了:" + dataPackage);
                 }
-                socket.shutdownOutput();
                 socket.close();
-            }catch (IOException e){
+            } catch (IOException e) {
                 e.printStackTrace();
             }
         }

@@ -1,5 +1,6 @@
 package com.wuxl.design.protocol;
 
+import javax.sql.DataSource;
 import java.util.Arrays;
 
 import static com.wuxl.design.common.DataUtils.toByte;
@@ -16,99 +17,72 @@ public class DataPackage {
     //数据来源
     private byte[] origin = new byte[ORIGIN_LENGTH];
 
-    //数据目的
+    //数据目的地
     private byte[] target = new byte[TARGET_LENGTH];
 
-    private int data;
+    //其他数据
+    private byte[] data = new byte[DATA_LENGTH];
 
     public DataPackage() {}
 
-    public DataPackage(byte[] origin,byte[] target,int data) {
+    public DataPackage(byte[] origin,byte[] target,byte[] data) {
         if(origin == null || origin.length < ORIGIN_LENGTH
-                || target == null || target.length < TARGET_LENGTH){
+                || target == null || target.length < TARGET_LENGTH
+                || data == null || data.length < DATA_LENGTH){
             throw new IllegalArgumentException("数据包构造异常");
         }
-        System.arraycopy(origin,0,this.origin,0,this.origin.length);
-        System.arraycopy(target,0,this.target,0,this.target.length);
-        this.data = data;
+        this.origin = Arrays.copyOf(origin,ORIGIN_LENGTH);
+        this.target = Arrays.copyOf(target,TARGET_LENGTH);
+        this.data = Arrays.copyOf(data, DATA_LENGTH);
     }
 
-    /**
-     * 数据接收解析
-     */
-    public boolean receive(byte[] bytes){
-        if(bytes == null || bytes.length < RECEIVE_LENGTH) {
-            return false;
-        }
-        System.arraycopy(bytes,0,origin,0,origin.length);
-        System.arraycopy(bytes,ORIGIN_LENGTH,target,0,target.length);
-        data = toInteger(bytes,ORIGIN_LENGTH + TARGET_LENGTH);
-        return true;
+    public int getOriginLength(){
+        return origin.length;
     }
 
-    /**
-     * 设置发送数据
-     */
-    public void setSendData(DataPackage data){
-        byte[] bytes = data.getAllData();
-        System.arraycopy(bytes,0,origin,0,origin.length);
-        System.arraycopy(bytes,ORIGIN_LENGTH,target,0,target.length);
-        this.data = toInteger(bytes,ORIGIN_LENGTH + TARGET_LENGTH);
+    public int getTargetLength(){
+        return target.length;
     }
 
-    /**
-     * 获得发送数据
-     * 只用发送来源and数据
-     */
-    public byte[] getSendData(){
-        byte[] sendData = new byte[SEND_LENGTH];
-        System.arraycopy(origin,0,sendData,0,origin.length);
-        toByte(sendData,data,ORIGIN_LENGTH);
-
-        return sendData;
+    public int getDataLength(){
+        return data.length;
     }
 
-    /**
-     * 获得所有数据
-     */
-    public byte[] getAllData(){
-        byte[] all = new byte[RECEIVE_LENGTH];
-        System.arraycopy(origin,0,all,0,origin.length);
-        System.arraycopy(target,0,all,ORIGIN_LENGTH,target.length);
-        toByte(all,data,ORIGIN_LENGTH + TARGET_LENGTH);
-
-        return all;
+    public int getReceiveLength(){
+        return getOriginLength() + getTargetLength() + getDataLength();
     }
 
-    public void setTarget(byte[] bytes){
-        if(bytes==null || bytes.length < TARGET_LENGTH){
-            throw  new IllegalArgumentException("参数不合法:"+ Arrays.toString(bytes));
-        }
-        System.arraycopy(bytes,0,target,0,target.length);
+    public int getSendLength(){
+        return getOriginLength() + getDataLength();
     }
 
-    public byte[] getOrigin(){
+    public byte[] getOrigin() {
         return origin;
     }
 
-    public byte[] getTarget(){
+    public byte[] getTarget() {
         return target;
     }
 
-    public int getData() {
+    public byte[] getData() {
         return data;
     }
 
-    public void setData(int data) {
-        this.data = data;
+    public String getHexOrigin(){
+        return toHex(origin);
+    }
+
+    public String getHexTarget(){
+        return toHex(target);
     }
 
     @Override
     public String toString() {
         return "DataPackage{" +
-                "origin=" + toHex(origin) +
-                ", target=" + toHex(target) +
-                ", data=" + Arrays.toString(toByte(data)) +
+                "origin=" + getHexOrigin() +
+                ", target=" + getHexTarget() +
+                ", data=" + Arrays.toString(data) +
                 '}';
     }
+
 }
