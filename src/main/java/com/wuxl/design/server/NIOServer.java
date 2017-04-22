@@ -109,7 +109,6 @@ public class NIOServer {
             try {
                 count = selector.select();
             }catch (IOException e){
-                running = false;
                 log.error("server select error",e);
                 break;
             }
@@ -219,8 +218,6 @@ public class NIOServer {
             client = (NIOClient) key.attachment();
             if (client.hasData()) {
                 ByteBuffer buffer = client.getBuffer();
-                log.debug("buff is :{}",Arrays.toString(buffer.array()));
-                log.debug("position:"+buffer.position()+",limit:"+buffer.limit());
                 socketChannel.write(buffer);
                 log.info("{} send data",client);
                 //清空数据

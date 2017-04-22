@@ -7,8 +7,6 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
 
-import static com.wuxl.design.protocol.DataProtocol.RECEIVE_LENGTH;
-
 /**
  * Created by wuxingle on 2017/4/18.
  * 服务器的数据解析器

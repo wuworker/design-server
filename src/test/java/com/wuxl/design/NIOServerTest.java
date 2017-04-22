@@ -13,6 +13,7 @@ import java.util.concurrent.Executors;
 
 /**
  * Created by wuxingle on 2017/4/9 0009.
+ * 通信测试
  */
 public class NIOServerTest {
 
