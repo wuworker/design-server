@@ -6,18 +6,18 @@
      			"%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} : %msg%n"/>
       		<ThresholdFilter level="debug" onMatch="ACCEPT" onMismatch="DENY"/>
     	</Console>
-		<!--
-		<File name="log" fileName="log/test.log" append="false">
+
+		<File name="log" fileName="/root/graduation-designer/server.log" append="false">
        		<PatternLayout pattern=
        			"%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} : %msg%n"/>
    		</File>
-   		-->
+
 	</appenders>  
   
 	<loggers>  
     	<root level="debug">
       		<appender-ref ref="console"/>  
     	</root>
-	</loggers>  
+	</loggers>
   
 </configuration>  

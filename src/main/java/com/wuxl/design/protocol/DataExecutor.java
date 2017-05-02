@@ -11,8 +11,14 @@ public abstract class DataExecutor {
 
     protected DataPackage dataPackage;
 
-    public DataExecutor(){
-        dataPackage = new DataPackage();
+    public DataExecutor(){}
+
+    public DataPackage getDataPackage() {
+        return dataPackage;
+    }
+
+    public void setDataPackage(DataPackage dataPackage) {
+        this.dataPackage = dataPackage;
     }
 
     /**
@@ -23,7 +29,8 @@ public abstract class DataExecutor {
     /**
      * 把发送数据包转为byte
      */
-    public abstract byte[] formDataPackage(DataPackage dataPackage);
+    public abstract byte[] fromDataPackage(DataPackage dataPackage);
+
 
     /**
      * 获得默认的解析器(服务端)

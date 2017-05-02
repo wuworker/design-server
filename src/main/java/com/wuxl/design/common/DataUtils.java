@@ -64,4 +64,25 @@ public class DataUtils {
         }
 
     }
+
+    /**
+     * 找出相同元素的索引
+     */
+    public static int indexOfByte(byte[] bytes,byte data){
+        return indexOfByte(bytes,0,data);
+    }
+
+    public static int indexOfByte(byte[] bytes,int start,byte data){
+        if(bytes==null){
+            return -1;
+        }
+        for(int i=start;i<bytes.length;i++){
+            if(bytes[i]==data){
+                return i;
+            }
+        }
+        return -1;
+    }
+
+
 }

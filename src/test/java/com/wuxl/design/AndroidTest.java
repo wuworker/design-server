@@ -11,37 +11,27 @@ import java.util.Arrays;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import static com.wuxl.design.protocol.DataProtocol.*;
+
 /**
  * Created by wuxingle on 2017/4/17 0017.
  * 与android手机通信测试
  */
 public class AndroidTest {
 
-    //命令
-    //开启
-    public static final byte CMD_ON = 0x12;
-    //关闭
-    public static final byte CMD_OFF = 0x49;
-    //调整
-    public static final byte CMD_PWM = (byte)0xa1;
-    //是否在线
-    public static final byte CMD_ONLINE = (byte)0xf5;
-
-    //应答
-    public static final byte OK_ONLINE = (byte)0xa8;
-
-    private static final byte[] ID1 = new byte[6];
+    //手机
     private static final byte[] ANDROID = new byte[6];
-    private static final byte[] EMPTY = new byte[6];
+
+    //单片机1
+    private static final byte[] MAC1 = {94,207-256,127,241-256,220-256,96};
 
     static {
-        Arrays.fill(ID1,(byte)0x2f);
         Arrays.fill(ANDROID,(byte)0x23);
     }
 
     public static void main(String[] args) {
         ExecutorService service = Executors.newFixedThreadPool(2);
-        DataExecutor dataExecutor = DataExecutor.getClientDataEecutor();
+        DataExecutor dataExecutor = DataExecutor.getDefaultDataExecutor();
 
         service.execute(new Device1(dataExecutor));
 
@@ -57,12 +47,13 @@ public class AndroidTest {
 
         private DataExecutor dataExecutor;
 
-        private byte[] data = new byte[4];
-
         public Device1(DataExecutor dataExecutor){
             this.dataExecutor = dataExecutor;
-            Arrays.fill(data,(byte)1);
-            dataPackage = new DataPackage(ID1,EMPTY,data);
+            dataPackage = new DataPackage();
+            dataExecutor.setDataPackage(dataPackage);
+            dataPackage.setOrigin(MAC1);
+            dataPackage.setTarget(ANDROID);
+            dataPackage.setCmd(IS_MCU);
         }
 
         @Override
@@ -70,21 +61,27 @@ public class AndroidTest {
             try (Socket socket = new Socket("localhost",9999)){
                 OutputStream out = socket.getOutputStream();
                 InputStream in = socket.getInputStream();
-                byte[] sendData = dataExecutor.formDataPackage(dataPackage);
+                byte[] sendData = dataExecutor.fromDataPackage(dataPackage);
                 out.write(sendData);
                 out.flush();
                 System.out.println("发送的数据为:"+Arrays.toString(sendData));
                 int count = 0;
-                byte[] receiveData = new byte[20];
+                byte[] receiveData = new byte[30];
                 while((count=in.read(receiveData))!=-1){
-                    DataPackage dataPackage = dataExecutor.toDataPackage(receiveData);
+                    byte[] array = Arrays.copyOf(receiveData,count);
+                    //System.out.println(Arrays.toString(array));
+                    if(array.length < PACKET_MIN_LENGTH){
+                        continue;
+                    }
+                    DataPackage dataPackage = dataExecutor.toDataPackage(array);
+                    System.out.println(dataPackage == this.dataPackage);
                     System.out.println("接收到:"+dataPackage);
                     //设置应答
-                    System.arraycopy(dataPackage.getOrigin(),0,dataPackage.getTarget(),0,dataPackage.getTargetLength());
-                    System.arraycopy(ID1,0,dataPackage.getOrigin(),0,dataPackage.getOriginLength());
-                    byte[] data = dataPackage.getData();
-                    data[0] = OK_ONLINE;
-                    sendData = dataExecutor.formDataPackage(dataPackage);
+                    dataPackage.clear();
+                    dataPackage.setOrigin(MAC1);
+                    dataPackage.setTarget(ANDROID);
+                    dataPackage.setCmd(OK);
+                    sendData = dataExecutor.fromDataPackage(dataPackage);
                     out.write(sendData);
                     out.flush();
                     System.out.println("发送了:"+Arrays.toString(sendData));
@@ -98,9 +95,6 @@ public class AndroidTest {
             }
         }
     }
-
-
-
 
 
 }
