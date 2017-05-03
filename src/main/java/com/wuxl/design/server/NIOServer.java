@@ -49,6 +49,10 @@ public class NIOServer {
     //参数设置
     private Map<NIOServerOptions.NIOServerOption,Object> options = new HashMap<>();
 
+    private int mcuCount;
+
+    private int appCount;
+
     private NIOServer() {
         registerList = Collections.synchronizedMap(new HashMap<>());
         clientsMapping = Collections.synchronizedMap(new HashMap<>());
@@ -218,7 +222,6 @@ public class NIOServer {
                     //数据处理
                     process(dataPackage, client);
                 }
-                log.info("handler reader over");
             } else {
                 log.info("client is close[]{}", client);
                 //删除设备
@@ -264,7 +267,7 @@ public class NIOServer {
      */
     private void handlerIOException(SelectionKey key) {
         try {
-            log.info("client count now is :{}", registerList.size());
+            log.info("client count now is :app={},mcu={}", appCount,mcuCount);
             key.cancel();
             key.channel().close();
         } catch (IOException e) {
@@ -276,15 +279,17 @@ public class NIOServer {
      * 数据处理
      */
     private void process(DataPackage dataPackage, AbstractClient client) {
-        log.info("[]--->[]process");
+        log.info("process begin");
         switch (dataPackage.getCmd()) {
             //注册
             case IS_APP:
                 client.setType(IS_APP);
+                appCount++;
                 register(dataPackage, client);
                 break;
             case IS_MCU:
                 client.setType(IS_MCU);
+                mcuCount++;
                 register(dataPackage, client);
                 break;
             case ADD_LED:
@@ -294,7 +299,7 @@ public class NIOServer {
                 forwardMessage(dataPackage);
                 break;
         }
-        log.info("[]<---[]process");
+        log.info("process end");
     }
 
 
@@ -302,15 +307,16 @@ public class NIOServer {
      * 设置关联关系
      */
     private void setMappings(DataPackage dataPackage) {
+        log.info("set mappings");
         String led = dataPackage.getHexTarget();
         String app = dataPackage.getHexOrigin();
-        Set<String> apps = clientsMapping.get(led);
-        if (apps == null) {
-            apps = new HashSet<>();
+        if(clientsMapping.containsKey(led)){
+            Set<String> apps = clientsMapping.get(led);
             apps.add(app);
-            clientsMapping.put(led, apps);
-        } else {
+        }else {
+            Set<String> apps = new HashSet<>();
             apps.add(app);
+            clientsMapping.put(led,apps);
         }
     }
 
@@ -357,6 +363,7 @@ public class NIOServer {
                 forwardMessage(dataPackage);
                 log.info("notify app the mcu is online[]{}", appClient);
             }
+            log.info("client count now is :app={},mcu={}", appCount,mcuCount);
         } else {
             log.info("client already registry");
         }
@@ -375,6 +382,11 @@ public class NIOServer {
         }
         //删除设备
         registerList.remove(origin);
+        if(client.getType() == IS_APP){
+            appCount--;
+        }else {
+            mcuCount--;
+        }
         if (!clientsMapping.containsKey(origin)) {
             return;
         }
@@ -407,6 +419,9 @@ public class NIOServer {
 
         @Override
         public void run() {
+            if(mcuCount == 0){
+                return;
+            }
             log.info("send to heartbeat packet");
             for(String origin : registerList.keySet()){
                 AbstractClient client = registerList.get(origin);
