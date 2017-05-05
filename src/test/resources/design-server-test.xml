@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<design-server>
+
+    <server>
+        <port>8888</port>
+        <heart>
+            <start>false</start>
+            <period>20</period>
+        </heart>
+    </server>
+
+</design-server>

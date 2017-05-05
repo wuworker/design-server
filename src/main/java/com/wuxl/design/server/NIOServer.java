@@ -4,6 +4,7 @@ import com.wuxl.design.client.AbstractClient;
 import com.wuxl.design.common.DataUtils;
 import com.wuxl.design.protocol.DataExecutor;
 import com.wuxl.design.protocol.DataPackage;
+import org.dom4j.DocumentException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -21,7 +22,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import static com.wuxl.design.protocol.DataProtocol.*;
-import static com.wuxl.design.server.NIOServerOptions.*;
+import static com.wuxl.design.server.NIOServerOption.BIND_PORT;
+import static com.wuxl.design.server.NIOServerOption.*;
 
 /**
  * 服务器
@@ -47,44 +49,52 @@ public class NIOServer {
     private DataExecutor dataExecutor;
 
     //参数设置
-    private Map<NIOServerOptions.NIOServerOption,Object> options = new HashMap<>();
+    private Map<NIOServerOption,String> options = new HashMap<>();
 
     private int mcuCount;
 
     private int appCount;
 
-    private NIOServer() {
+    private NIOServer(String configFile){
         registerList = Collections.synchronizedMap(new HashMap<>());
         clientsMapping = Collections.synchronizedMap(new HashMap<>());
         dataExecutor = DataExecutor.getDefaultDataExecutor();
         dataExecutor.setDataPackage(new DataPackage());
 
-        //默认参数
-        options.put(BIND_PORT,9999);
-        options.put(HT_START,true);
-        options.put(HT_PERIOD,300);
+        try {
+            NIOServerConfiguration configuration = new NIOServerConfiguration(configFile);
+            options = configuration.getOptions();
+        }catch (DocumentException e){
+            log.error("parse xml error",e);
+        }
     }
 
     //获得实例
     public static NIOServer getInstance() {
+        return getInstance(null);
+    }
+
+    public static NIOServer getInstance(String configFile) {
         if (instance == null) {
-            instance = new NIOServer();
+            instance = new NIOServer(configFile);
         }
         return instance;
     }
 
+
     /**
      * 绑定端口号
-     *
      * @return 服务实例
      */
-    public NIOServer bind() throws IOException {
-        int port = (int)options.get(BIND_PORT);
+    public NIOServer bind() throws IOException,NumberFormatException {
         try {
+            int port = Integer.parseInt(options.get(BIND_PORT));
             instance.init(port);
-            log.info("server bind port:{}", port);
         } catch (IOException e) {
             log.error("server bind error", e);
+            throw e;
+        } catch (NumberFormatException e){
+            log.error("port is not a number");
             throw e;
         }
         return instance;
@@ -93,7 +103,7 @@ public class NIOServer {
     /**
      * 设置参数
      */
-    public <T> NIOServer setOptions(NIOServerOptions.NIOServerOption<T> name,T value){
+    public NIOServer setOptions(NIOServerOption name, String value){
         options.put(name,value);
         return instance;
     }
@@ -101,14 +111,26 @@ public class NIOServer {
     /**
      * 开始运行
      */
-    public void start() throws IOException {
+    public void start() throws IOException,NumberFormatException{
+        log.debug("server config is:");
+        for(NIOServerOption option:options.keySet()){
+            log.debug("{}--->{}",option,options.get(option));
+        }
+
         log.info("server start!");
-        boolean optionOf_HT_START = (boolean)options.get(HT_START);
-        int optionOf_HT_PERIOD = (int)options.get(HT_PERIOD);
-        if(optionOf_HT_START){
-            log.info("heartbeat is enable,period is {} seconds",optionOf_HT_PERIOD);
+        boolean start;
+        int period;
+        try {
+            start = Boolean.parseBoolean(options.get(HEART_START));
+            period = Integer.parseInt(options.get(HEART_PERIOD));
+        }catch (NumberFormatException e){
+            log.error("heart param is error");
+            throw e;
+        }
+        if(start){
+            log.info("heartbeat is enable,period is {} seconds",period);
             scheduledExecutor.scheduleWithFixedDelay(new HeartbeatTask(),
-                    optionOf_HT_PERIOD,optionOf_HT_PERIOD, TimeUnit.SECONDS);
+                    period,period, TimeUnit.SECONDS);
         }
         instance.listen();
     }
