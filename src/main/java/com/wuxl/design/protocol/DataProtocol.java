@@ -32,8 +32,6 @@ public class DataProtocol {
 
     public static final byte IS_MCU = 0x22;
 
-    public static final byte FAIL = 0x33;
-
     public static final byte ADD_LED = 0x41;
 
     public static final byte UPING = 0x51;

@@ -4,7 +4,7 @@
     <server>
         <port>9999</port>
         <heart>
-            <start>true</start>
+            <start>false</start>
             <period>20</period>
         </heart>
     </server>

@@ -1,7 +1,6 @@
 package com.wuxl.design;
 
 import com.wuxl.design.server.NIOServer;
-import com.wuxl.design.server.NIOServerOption;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -15,10 +14,9 @@ public class ServerStartupApplication {
 
     public static void main(String[] args) {
         try {
-            NIOServer server = NIOServer.getInstance();
+            NIOServer server = NIOServer.getInstance("/root/designer/design-server.xml");
             log.info("server will start");
-            server.setOptions(NIOServerOption.HEART_START,"false")
-                    .bind().start();
+            server.bind().start();
         }catch (Exception e){
             log.error("server running error",e);
         }

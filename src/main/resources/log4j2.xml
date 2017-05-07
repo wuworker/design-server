@@ -7,16 +7,15 @@
       		<ThresholdFilter level="debug" onMatch="ACCEPT" onMismatch="DENY"/>
     	</Console>
 
-		<File name="file" fileName="/root/graduation-designer/server.log" append="false">
+		<File name="file" fileName="/root/designer/server.log" append="false">
        		<PatternLayout pattern=
        			"%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} : %msg%n"/>
    		</File>
-
-	</appenders>  
+	</appenders>
   
 	<loggers>  
     	<root level="debug">
-      		<appender-ref ref="console"/>
+      		<appender-ref ref="file"/>
     	</root>
 	</loggers>
   
