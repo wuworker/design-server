@@ -23,6 +23,8 @@ public abstract class AbstractClient {
 
     private String address;
 
+    private boolean online;
+
     //类型
     private int type;
 
@@ -34,7 +36,6 @@ public abstract class AbstractClient {
         return new DefaultClient(address);
     }
 
-    //可能有多个线程的访问
     public void setData(byte[] data){
         buffer.put(data);
         hasData = true;
@@ -76,6 +77,14 @@ public abstract class AbstractClient {
 
     public void setType(int type) {
         this.type = type;
+    }
+
+    public synchronized boolean isOnline() {
+        return online;
+    }
+
+    public synchronized void setOnline(boolean online) {
+        this.online = online;
     }
 
     @Override

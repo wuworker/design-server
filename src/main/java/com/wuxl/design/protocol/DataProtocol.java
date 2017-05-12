@@ -26,11 +26,11 @@ public class DataProtocol {
     //命令
     public static final byte OK = 0x11;
 
-    public static final byte ONLINE = 0x12;
-
     public static final byte IS_APP = 0x21;
 
     public static final byte IS_MCU = 0x22;
+
+    public static final byte ONLINE = 0x31;
 
     public static final byte ADD_LED = 0x41;
 
