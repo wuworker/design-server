@@ -14,7 +14,7 @@ public class DefaultClient extends AbstractClient{
 
     public DefaultClient(String address){
         super(address);
-        buffer = ByteBuffer.allocate(64);
+        buffer = ByteBuffer.allocate(1024);
         origin = new byte[ORIGIN_LENGTH];
     }
 

@@ -33,13 +33,14 @@ public class NIOServer {
 
     private Timer timer  = new Timer(true);
 
-    private Map<String,SelectionKey> socketMap;
-
     //注册列表
     private Map<String, AbstractClient> registerMap;
 
     //关联关系
     private Map<String, Set<String>> clientsMapping;
+
+    //需要删除的连接
+    private final Queue<AbstractClient> delQueue;
 
     private Selector selector;
 
@@ -54,9 +55,10 @@ public class NIOServer {
     private int appCount;
 
     private NIOServer(String configFile){
-        socketMap = Collections.synchronizedMap(new HashMap<>());
         registerMap = Collections.synchronizedMap(new HashMap<>());
-        clientsMapping = Collections.synchronizedMap(new HashMap<>());
+        clientsMapping = new HashMap<>();
+        delQueue = new ArrayDeque<>();
+
         dataExecutor = DataExecutor.getDefaultDataExecutor();
         dataExecutor.setDataPackage(new DataPackage());
 
@@ -128,7 +130,7 @@ public class NIOServer {
         }
         if(start){
             log.info("heartbeat is enable,period is {} seconds",period);
-            timer.schedule(new HeartbeatTask(),period * 1000,period * 1000);
+            timer.schedule(new HeartbeatTask(delQueue),period * 1000,period * 1000);
         }
         instance.listen();
     }
@@ -201,7 +203,6 @@ public class NIOServer {
             SelectionKey selectionKey = socketChannel.register(selector,
                     SelectionKey.OP_READ | SelectionKey.OP_WRITE);
             SocketAddress address = socketChannel.getRemoteAddress();
-            socketMap.put(address.toString(),selectionKey);
             AbstractClient client = AbstractClient.getDefaultClient(address.toString());
             client.setOnline(true);
             selectionKey.attach(client);
@@ -267,13 +268,26 @@ public class NIOServer {
         try {
             SocketChannel socketChannel = (SocketChannel) key.channel();
             client = (AbstractClient) key.attachment();
-            if (client.hasData()) {
-                ByteBuffer buffer = client.getBuffer();
-                buffer.flip();
-                socketChannel.write(buffer);
-                log.info("send data to {}", client);
-                //清空数据
-                client.clear();
+            if(delQueue.isEmpty()){
+                if (client.hasData()) {
+                    ByteBuffer buffer = client.getBuffer();
+                    buffer.flip();
+                    socketChannel.write(buffer);
+                    log.info("send data to {}", client);
+                    //清空数据
+                    client.clear();
+                }
+            }else {
+                synchronized (delQueue){
+                    if(delQueue.isEmpty()){
+                        return;
+                    }
+                    AbstractClient delClient = delQueue.peek();
+                    if(client.getHexOrigin().equals(delClient.getHexOrigin())){
+                        delClient(delQueue.poll());
+                        handlerIOException(key);
+                    }
+                }
             }
         } catch (IOException e) {
             log.error("send data error[]{}", client, e);
@@ -288,10 +302,6 @@ public class NIOServer {
      * @param key key
      */
     private void handlerIOException(SelectionKey key) {
-        if(key == null){
-            log.info("handler Exception key is null");
-            return;
-        }
         try {
             log.info("client count now is :app={},mcu={}", appCount,mcuCount);
             key.cancel();
@@ -406,7 +416,6 @@ public class NIOServer {
      */
     private void delClient(AbstractClient client) {
         String origin = client.getHexOrigin();
-        socketMap.remove(client.getAddress());
         if (!registerMap.containsKey(origin)) {
             log.info("not find this client,maybe already deleted[]{}", client);
             return;
@@ -445,7 +454,11 @@ public class NIOServer {
      * 检测单片机是否掉线
      */
     private class HeartbeatTask extends TimerTask{
-        List<AbstractClient> delList = new ArrayList<>();
+        private final Queue<AbstractClient> delQueue;
+
+        public HeartbeatTask(Queue<AbstractClient> delQueue){
+            this.delQueue = delQueue;
+        }
 
         @Override
         public void run() {
@@ -453,33 +466,23 @@ public class NIOServer {
                 return;
             }
             log.info("check mcu is online");
-            for(String origin : registerMap.keySet()){
-                AbstractClient client = registerMap.get(origin);
-                if(client.getType()==IS_APP)
-                    continue;
-                //如果是单片机需要定时心跳
-                if(client.isOnline()){
-                    client.setOnline(false);
-                }else {
-                    delList.add(client);
+            synchronized (delQueue){
+                for(String origin : registerMap.keySet()){
+                    AbstractClient client = registerMap.get(origin);
+                    if(client.getType()==IS_APP)
+                        continue;
+                    //如果是单片机需要定时心跳
+                    if(client.isOnline()){
+                        client.setOnline(false);
+                    }else {
+                        delQueue.offer(client);
+                    }
                 }
             }
-            for(AbstractClient client:delList){
-                log.info("{} is down",client);
-                SelectionKey key = socketMap.get(client.getAddress());
-                socketMap.remove(client.getAddress());
-                SocketChannel socketChannel = (SocketChannel)key.channel();
-                delClient(client);
 
-                try {
-                    key.cancel();
-                    socketChannel.close();
-                }catch (IOException e){
-                    log.error("close useless mcu error");
-                }
-            }
-            delList.clear();
         }
+
+
     }
 
 }
